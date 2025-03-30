@@ -5,6 +5,11 @@ from pathlib import Path
 
 TARGET_HOSTS_FILE = './target_hosts.txt'
 
+# ANSIカラーコード
+COLOR_RESET = '\033[0m'
+COLOR_GREEN = '\033[92m'
+COLOR_RED = '\033[91m'
+
 # 指定したファイルからホスト名とコンフィグパスを取得する
 def get_target_hosts_configs(file_path):
     hosts_configs = []
@@ -53,7 +58,13 @@ def compare_config(hostname, remote_config, local_config_path):
 
     if diff_output:
         print(f"Difference found for {hostname}:")
-        print(diff_output)
+        for line in diff_output.splitlines():
+            if line.startswith('+'):
+                print(f"{COLOR_GREEN}{line}{COLOR_RESET}")
+            elif line.startswith('-'):
+                print(f"{COLOR_RED}{line}{COLOR_RESET}")
+            else:
+                print(line)
     else:
         print(f"No differences for {hostname}.")
 
