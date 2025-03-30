@@ -1,0 +1,2 @@
+router1 ./configs/router1.txt
+switch1 ./configs/switch1.txt

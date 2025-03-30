@@ -3,11 +3,18 @@
 set timeout 20
 set host [lindex $argv 0]
 
-stty -echo
-send_user "SSH Username: "
-expect_user -re "(.*)\n"
-set user $expect_out(1,string)
+# --- ssh -G で User を取得 ---
+set getuser [open "|ssh -G $host | grep {^user } | awk '{print \$2}'" r]
+set user [string trim [gets $getuser]]
+close $getuser
 
+if {$user eq ""} {
+    send_user "エラー: ssh -G でホスト '$host' のユーザー名を取得できません\n"
+    exit 1
+}
+
+# --- 対話式でパスワードを入力 ---
+stty -echo
 send_user "SSH Password: "
 expect_user -re "(.*)\n"
 set pass $expect_out(1,string)
@@ -18,6 +25,7 @@ set enablepass $expect_out(1,string)
 stty echo
 send_user "\n"
 
+# 出力先
 set outfile "/tmp/${host}_running-config.tmp"
 
 spawn ssh $user@$host
