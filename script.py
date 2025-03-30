@@ -2,6 +2,7 @@ import subprocess
 import difflib
 import os
 from pathlib import Path
+import getpass
 
 TARGET_HOSTS_FILE = './target_hosts.txt'
 
@@ -20,11 +21,14 @@ def get_target_hosts_configs(file_path):
                 hosts_configs.append((parts[0], parts[1]))
     return hosts_configs
 
-# ネイティブのsshコマンドを使ってshow runを取得する
-def fetch_remote_config(hostname):
+# ネイティブのsshコマンドを使ってenable後にshow runを取得する
+def fetch_remote_config(hostname, enable_password):
+    command = f'echo -e "enable\\n{enable_password}\\nshow run" | ssh -tt {hostname}'
+
     try:
         result = subprocess.run(
-            ['ssh', hostname, 'show run'],
+            command,
+            shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             check=True,
@@ -71,10 +75,11 @@ def compare_config(hostname, remote_config, local_config_path):
 # メイン処理
 def main():
     hosts_configs = get_target_hosts_configs(TARGET_HOSTS_FILE)
+    enable_password = getpass.getpass("Enter enable password: ")
 
     for hostname, local_config_path in hosts_configs:
         print(f"Processing host: {hostname}")
-        remote_config = fetch_remote_config(hostname)
+        remote_config = fetch_remote_config(hostname, enable_password)
         if remote_config:
             compare_config(hostname, remote_config, local_config_path)
 
