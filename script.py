@@ -1,56 +1,38 @@
 import subprocess
 import difflib
-import os
 from pathlib import Path
 import getpass
 
 TARGET_HOSTS_FILE = './target_hosts.txt'
 
-# ANSIカラーコード
 COLOR_RESET = '\033[0m'
 COLOR_GREEN = '\033[92m'
 COLOR_RED = '\033[91m'
 
-# 指定したファイルからホスト名とコンフィグパスを取得する
-def get_target_hosts_configs(file_path):
-    hosts_configs = []
-    with open(file_path, 'r') as f:
-        for line in f:
-            parts = line.strip().split()
-            if len(parts) == 2:
-                hosts_configs.append((parts[0], parts[1]))
-    return hosts_configs
 
-# SSH経由でenable後にshow runを取得する
-def fetch_remote_config(hostname, enable_password):
-    commands = f'enable\n{enable_password}\nterminal length 0\nshow run\nexit\n'
+def load_targets(file_path):
+    with open(file_path) as f:
+        return [line.strip().split() for line in f if line.strip()]
 
-    try:
-        result = subprocess.run(
-            ['ssh', '-tt', hostname],
-            input=commands,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=True,
-            text=True
-        )
-        return result.stdout
-    except subprocess.CalledProcessError as e:
-        print(f"Error connecting to {hostname}: {e.stderr}")
+
+def fetch_config(hostname, password):
+    commands = f'enable\n{password}\nterminal length 0\nshow run\nexit\n'
+    result = subprocess.run(['ssh', '-tt', hostname], input=commands, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"Error connecting to {hostname}: {result.stderr}")
         return None
+    return result.stdout.replace('\r\n', '\n').strip()
 
-# ローカルファイルと比較する
-def compare_config(hostname, remote_config, local_config_path):
-    local_config_path = Path(local_config_path)
 
-    if not local_config_path.exists():
-        print(f"Local config for {hostname} not found, saving remote config as baseline.")
-        local_config_path.parent.mkdir(parents=True, exist_ok=True)
-        local_config_path.write_text(remote_config)
+def compare_configs(hostname, remote_config, local_config_path):
+    local_path = Path(local_config_path)
+    if not local_path.exists():
+        print(f"Local config for {hostname} not found. Saving remote config.")
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+        local_path.write_text(remote_config)
         return
 
-    local_config = local_config_path.read_text()
-
+    local_config = local_path.read_text().replace('\r\n', '\n').strip()
     diff = difflib.unified_diff(
         local_config.splitlines(keepends=True),
         remote_config.splitlines(keepends=True),
@@ -59,29 +41,25 @@ def compare_config(hostname, remote_config, local_config_path):
     )
 
     diff_output = ''.join(diff)
-
     if diff_output:
-        print(f"Difference found for {hostname}:")
+        print(f"Differences found for {hostname}:")
         for line in diff_output.splitlines():
-            if line.startswith('+'):
-                print(f"{COLOR_GREEN}{line}{COLOR_RESET}")
-            elif line.startswith('-'):
-                print(f"{COLOR_RED}{line}{COLOR_RESET}")
-            else:
-                print(line)
+            color = COLOR_GREEN if line.startswith('+') else COLOR_RED if line.startswith('-') else COLOR_RESET
+            print(f"{color}{line}{COLOR_RESET}")
     else:
         print(f"No differences for {hostname}.")
 
-# メイン処理
-def main():
-    hosts_configs = get_target_hosts_configs(TARGET_HOSTS_FILE)
-    enable_password = getpass.getpass("Enter enable password: ")
 
-    for hostname, local_config_path in hosts_configs:
-        print(f"Processing host: {hostname}")
-        remote_config = fetch_remote_config(hostname, enable_password)
+def main():
+    targets = load_targets(TARGET_HOSTS_FILE)
+    password = getpass.getpass("Enter enable password: ")
+
+    for hostname, local_config_path in targets:
+        print(f"Checking host: {hostname}")
+        remote_config = fetch_config(hostname, password)
         if remote_config:
-            compare_config(hostname, remote_config, local_config_path)
+            compare_configs(hostname, remote_config, local_config_path)
+
 
 if __name__ == "__main__":
     main()
