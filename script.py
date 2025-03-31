@@ -21,14 +21,14 @@ def get_target_hosts_configs(file_path):
                 hosts_configs.append((parts[0], parts[1]))
     return hosts_configs
 
-# ネイティブのsshコマンドを使ってenable後にshow runを取得する
+# SSH経由でenable後にshow runを取得する
 def fetch_remote_config(hostname, enable_password):
-    command = f'echo -e "enable\\n{enable_password}\\nshow run" | ssh -tt {hostname}'
+    commands = f'enable\n{enable_password}\nterminal length 0\nshow run\nexit\n'
 
     try:
         result = subprocess.run(
-            command,
-            shell=True,
+            ['ssh', '-tt', hostname],
+            input=commands,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             check=True,
